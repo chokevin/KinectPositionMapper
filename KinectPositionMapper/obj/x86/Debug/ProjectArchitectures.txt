@@ -1,1 +1,1 @@
-C:\Users\AmbientUH\Desktop\KinectPositionMapper\KinectPositionMapper\KinectPositionMapper.csproj;x86
+C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\KinectPositionMapper.csproj;x86

@@ -18,6 +18,7 @@ using Windows.UI.Xaml.Media.Imaging;
 using System.ComponentModel;
 using Windows.Storage.Streams;
 using System.Runtime.InteropServices;
+using Kinect2Sample;
 
 
 
@@ -30,7 +31,8 @@ namespace KinectPositionMapper
         Infrared,
         Color,
         Depth,
-        BodyMask
+        BodyMask,
+        BodyJoints
     }
 
     /// <summary>
@@ -84,6 +86,7 @@ namespace KinectPositionMapper
         private DisplayFrameType currentDisplayFrameType;
         private MultiSourceFrameReader multiSourceFrameReader = null;
         private CoordinateMapper coordinateMapper = null;
+        private BodiesManager bodiesManager = null;
 
         //Infrared Frame
         private ushort[] infraredFrameData = null;
@@ -95,6 +98,8 @@ namespace KinectPositionMapper
 
         //BodyMask Frame
         private DepthSpacePoint[] colorMappedToDepthPoints = null;
+
+        private Canvas drawingCanvas;
 
         public event PropertyChangedEventHandler PropertyChanged;
         public string StatusText
@@ -144,7 +149,8 @@ namespace KinectPositionMapper
                 FrameSourceTypes.Infrared 
                 | FrameSourceTypes.Color 
                 | FrameSourceTypes.Depth
-                | FrameSourceTypes.BodyIndex);
+                | FrameSourceTypes.BodyIndex
+                | FrameSourceTypes.Body);
             this.multiSourceFrameReader.MultiSourceFrameArrived += this.Reader_MultiSourceFrameArrived;
         
 
@@ -176,6 +182,7 @@ namespace KinectPositionMapper
             BodyIndexFrame bodyIndexFrame = null;
             IBuffer depthFrameDataBuffer = null;
             IBuffer bodyIndexFrameData = null;
+            BodyFrame bodyFrame = null;
             IBufferByteAccess bodyIndexByteAccess = null;
             switch (currentDisplayFrameType)
             {
@@ -248,6 +255,12 @@ namespace KinectPositionMapper
                         }
                     }
                     break;
+                case DisplayFrameType.BodyJoints:
+                    using (bodyFrame = multiSourceFrame.BodyFrameReference.AcquireFrame())
+                    {
+                        ShowBodyJoints(bodyFrame);
+                    }
+                    break;
                 default:
                     break;
             }
@@ -258,6 +271,16 @@ namespace KinectPositionMapper
             currentDisplayFrameType = newDisplayFrameType;
             // Frames used by more than one type are declared outside the switch statement
             FrameDescription colorFrameDescription = null;
+
+            //reset the display mathods
+            if (this.BodyJointsGrid != null)
+            {
+                this.BodyJointsGrid.Visibility = Visibility.Collapsed;
+            }
+            if (this.FrameDisplayImage != null)
+            {
+                this.FrameDisplayImage.Source = null;
+            }
             switch (currentDisplayFrameType)
             {
                 case DisplayFrameType.Infrared:
@@ -288,6 +311,18 @@ namespace KinectPositionMapper
                     this.colorMappedToDepthPoints = new DepthSpacePoint[colorFrameDescription.Width * colorFrameDescription.Height];
                     this.bitmap = new WriteableBitmap(colorFrameDescription.Width, colorFrameDescription.Height);
                     break;
+                case DisplayFrameType.BodyJoints:
+                    // instantiate a new Canvas
+                    this.drawingCanvas = new Canvas();
+                    this.drawingCanvas.Clip = new RectangleGeometry();
+                    this.drawingCanvas.Clip.Rect = new Rect(0.0, 0.0, this.BodyJointsGrid.Width, this.BodyJointsGrid.Height);
+                    // reset the body joints grid
+                    this.BodyJointsGrid.Visibility = Visibility.Visible;
+                    this.BodyJointsGrid.Children.Clear();
+                    // add canvas to DisplayGrid
+                    this.BodyJointsGrid.Children.Add(this.drawingCanvas);
+                    this.bodiesManager = new BodiesManager(this.coordinateMapper, this.drawingCanvas, this.kinectSensor.BodyFrameSource.BodyCount);
+                    break;
                 default:
                     break;
             }
@@ -296,6 +331,21 @@ namespace KinectPositionMapper
         private void Sensor_IsAvailableChanged(KinectSensor sender, IsAvailableChangedEventArgs args)
         {
             this.StatusText = this.kinectSensor.IsAvailable ? "Running" : "Not Available";
+        }
+
+        private void ShowBodyJoints(BodyFrame bodyFrame)
+        {
+            Body[] bodies = new Body[this.kinectSensor.BodyFrameSource.BodyCount];
+            bool dataReceived = false;
+            if (bodyFrame != null)
+            {
+                bodyFrame.GetAndRefreshBodyData(bodies);
+                dataReceived = true;
+            }
+            if (dataReceived)
+            {
+                this.bodiesManager.UpdateBodiesAndEdges(bodies);
+            }
         }
 
         unsafe private void ShowMappedBodyFrame(int depthWidth, int depthHeight, IBuffer bodyIndexFrameData, IBufferByteAccess bodyIndexByteAccess)
@@ -515,6 +565,11 @@ namespace KinectPositionMapper
         private void BodyMask_OnClick(object sender, RoutedEventArgs e)
         {
             SetupCurrentDisplay(DisplayFrameType.BodyMask);
+        }
+
+        private void BodyJointsButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            SetupCurrentDisplay(DisplayFrameType.BodyJoints);
         }
     }
 
