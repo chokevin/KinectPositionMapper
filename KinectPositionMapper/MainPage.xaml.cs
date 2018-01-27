@@ -19,6 +19,7 @@ using System.ComponentModel;
 using Windows.Storage.Streams;
 using System.Runtime.InteropServices;
 using Kinect2Sample;
+using System.Diagnostics;
 
 
 
@@ -34,6 +35,13 @@ namespace KinectPositionMapper
         BodyMask,
         BodyJoints
     }
+
+    struct Position
+    {
+        public float x;
+        public float y;
+        public float z;
+    };
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
@@ -176,6 +184,7 @@ namespace KinectPositionMapper
             {
                 return;
             }
+
             DepthFrame depthFrame = null;
             ColorFrame colorFrame = null;
             InfraredFrame infraredFrame = null;
@@ -259,6 +268,7 @@ namespace KinectPositionMapper
                     using (bodyFrame = multiSourceFrame.BodyFrameReference.AcquireFrame())
                     {
                         ShowBodyJoints(bodyFrame);
+                        CalculateBodyPositions(bodyFrame);    
                     }
                     break;
                 default:
@@ -333,6 +343,33 @@ namespace KinectPositionMapper
             this.StatusText = this.kinectSensor.IsAvailable ? "Running" : "Not Available";
         }
 
+        private void CalculateBodyPositions(BodyFrame bodyFrame)
+        {
+            Body[] bodiesArray = new Body[this.kinectSensor.BodyFrameSource.BodyCount];
+
+            if (bodyFrame != null)
+            {
+                bodyFrame.GetAndRefreshBodyData(bodiesArray);
+
+                /* Iterate through all the bodies. There is no point in persisting activeBodyIndex because we must compare
+                 * with depths of all bodies so there is no gain in efficiency */
+
+                Position spinalPosition;
+                for (int i = 0; i < bodiesArray.Length; i++)
+                {
+                    Body body = bodiesArray[i];
+                    if (body.IsTracked)
+                    {
+                        spinalPosition = GetPositionFromBody(body);
+                        Debug.WriteLine("new");
+                        Debug.WriteLine(spinalPosition.x);
+                        Debug.WriteLine(spinalPosition.y);
+                        Debug.WriteLine(spinalPosition.z);
+                    }
+                }
+            }
+        }
+
         private void ShowBodyJoints(BodyFrame bodyFrame)
         {
             Body[] bodies = new Body[this.kinectSensor.BodyFrameSource.BodyCount];
@@ -346,6 +383,16 @@ namespace KinectPositionMapper
             {
                 this.bodiesManager.UpdateBodiesAndEdges(bodies);
             }
+        }
+
+        private Position GetPositionFromBody(Body body)
+        {
+            Position newPosition;
+            newPosition.x = body.Joints[JointType.SpineBase].Position.X;
+            newPosition.y = body.Joints[JointType.SpineBase].Position.Y;
+            newPosition.z = body.Joints[JointType.SpineBase].Position.Z;
+
+            return newPosition;
         }
 
         unsafe private void ShowMappedBodyFrame(int depthWidth, int depthHeight, IBuffer bodyIndexFrameData, IBufferByteAccess bodyIndexByteAccess)

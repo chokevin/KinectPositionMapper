@@ -34,7 +34,7 @@
   <ItemGroup>
     <AppxPackagedFile Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\bin\x86\Debug\KinectPositionMapper.exe">
       <PackagePath>KinectPositionMapper.exe</PackagePath>
-      <Modified>2018-01-26T01:34:57.040</Modified>
+      <Modified>2018-01-27T01:11:45.594</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\Assets\Logo.scale-100.png">
       <PackagePath>Assets\Logo.scale-100.png</PackagePath>
