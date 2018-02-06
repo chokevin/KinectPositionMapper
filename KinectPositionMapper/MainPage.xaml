@@ -70,6 +70,10 @@
                             Click="BodyJointsButton_OnClick">
                         <TextBlock Text="Body Joints" TextWrapping="Wrap"/>
                     </Button>
+                    <Button Style="{StaticResource FrameSelectorButtonStyle}"
+                            Click="asyncWriteOutput">
+                        <TextBlock Text="Write Output" TextWrapping="Wrap"/>
+                    </Button>
 
                 </StackPanel>
             </ScrollViewer>

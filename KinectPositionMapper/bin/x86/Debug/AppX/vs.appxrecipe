@@ -16,7 +16,7 @@
     <PackageRegistrationPath>
     </PackageRegistrationPath>
     <RemoveNonLayoutFiles>true</RemoveNonLayoutFiles>
-    <RegisteredManifestChecksum>9B28C2F380E65D5466EBEAAA28EC7170CAD6AE406D4B0F052E92C9E9EFEC6C4F</RegisteredManifestChecksum>
+    <RegisteredManifestChecksum>17EA68CB0DF72AE92094843C7A9160184CBFF6A2D919DACED633232716EA7EB4</RegisteredManifestChecksum>
     <RegisteredPackageMoniker>159eb80c-857e-4bc4-a0ba-9d5266c417ff_1.0.0.0_x86__zkzqb6kcb8758</RegisteredPackageMoniker>
     <RegisteredUserModeAppID>159eb80c-857e-4bc4-a0ba-9d5266c417ff_zkzqb6kcb8758!App</RegisteredUserModeAppID>
     <RegisteredPackageID>159eb80c-857e-4bc4-a0ba-9d5266c417ff</RegisteredPackageID>
@@ -28,13 +28,13 @@
     <AppXManifest Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\bin\x86\Debug\AppxManifest.xml">
       <PackagePath>AppxManifest.xml</PackagePath>
       <ReRegisterAppIfChanged>true</ReRegisterAppIfChanged>
-      <Modified>2018-01-26T01:34:57.294</Modified>
+      <Modified>2018-02-06T23:29:53.288</Modified>
     </AppXManifest>
   </ItemGroup>
   <ItemGroup>
     <AppxPackagedFile Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\bin\x86\Debug\KinectPositionMapper.exe">
       <PackagePath>KinectPositionMapper.exe</PackagePath>
-      <Modified>2018-01-27T01:11:45.594</Modified>
+      <Modified>2018-02-06T23:37:21.581</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\Assets\Logo.scale-100.png">
       <PackagePath>Assets\Logo.scale-100.png</PackagePath>
@@ -62,15 +62,15 @@
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\bin\x86\Debug\App.xbf">
       <PackagePath>App.xbf</PackagePath>
-      <Modified>2018-01-26T01:34:56.978</Modified>
+      <Modified>2018-02-06T01:23:37.112</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\bin\x86\Debug\MainPage.xbf">
       <PackagePath>MainPage.xbf</PackagePath>
-      <Modified>2018-01-26T01:34:56.978</Modified>
+      <Modified>2018-02-06T23:29:09.513</Modified>
     </AppxPackagedFile>
     <AppxPackagedFile Include="C:\Users\AmbientUH\Desktop\kinecttutorial\KinectPositionMapper\bin\x86\Debug\resources.pri">
       <PackagePath>resources.pri</PackagePath>
-      <Modified>2018-01-26T01:34:57.168</Modified>
+      <Modified>2018-02-06T23:29:53.171</Modified>
     </AppxPackagedFile>
   </ItemGroup>
   <ItemGroup>
