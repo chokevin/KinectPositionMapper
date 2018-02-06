@@ -70,6 +70,10 @@
                                                             >
                         <TextBlock Text="Body Joints" TextWrapping="Wrap"/>
                     </Button>
+                    <Button x:ConnectionId='6' Style="{StaticResource FrameSelectorButtonStyle}"
+                                                    >
+                        <TextBlock Text="Write Output" TextWrapping="Wrap"/>
+                    </Button>
 
                 </StackPanel>
             </ScrollViewer>

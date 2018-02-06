@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
@@ -19,6 +20,7 @@ using System.ComponentModel;
 using Windows.Storage.Streams;
 using System.Runtime.InteropServices;
 using Kinect2Sample;
+using System.Threading.Tasks;
 
 
 
@@ -34,6 +36,13 @@ namespace KinectPositionMapper
         BodyMask,
         BodyJoints
     }
+
+    struct Position
+    {
+        public float x;
+        public float y;
+        public float z;
+    };
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
@@ -101,18 +110,23 @@ namespace KinectPositionMapper
 
         private Canvas drawingCanvas;
 
+        //FileStream
+        private String FILE_OUTPUT_STRING = "debugwrite.txt";
+        private Windows.Storage.StorageFile sampleFile = null;
+        Position spinalPosition;
+
         public event PropertyChangedEventHandler PropertyChanged;
         public string StatusText
         {
-            get { return this.statusText;  }
+            get { return statusText;  }
             set
             {
-                if (this.statusText != value)
+                if (statusText != value)
                 {
-                    this.statusText = value;
-                    if (this.PropertyChanged != null)
+                    statusText = value;
+                    if (PropertyChanged != null)
                     {
-                        this.PropertyChanged(this, new PropertyChangedEventArgs("StatusText"));
+                        PropertyChanged(this, new PropertyChangedEventArgs("StatusText"));
                     }
                 }
             }
@@ -120,15 +134,15 @@ namespace KinectPositionMapper
 
         public FrameDescription CurrentFrameDescription
         {
-            get { return this.currentFrameDescription;  }
+            get { return currentFrameDescription;  }
             set
             {
-                if (this.currentFrameDescription != value)
+                if (currentFrameDescription != value)
                 {
-                    this.currentFrameDescription = value;
-                    if (this.PropertyChanged != null)
+                    currentFrameDescription = value;
+                    if (PropertyChanged != null)
                     {
-                        this.PropertyChanged(this, new PropertyChangedEventArgs("CurrentFrameDescription"));
+                        PropertyChanged(this, new PropertyChangedEventArgs("CurrentFrameDescription"));
                     }
                 }
             }
@@ -137,36 +151,54 @@ namespace KinectPositionMapper
 
         public MainPage()
         {
+             Task createdFile = createFile(FILE_OUTPUT_STRING);
+             createdFile.Wait();
+
             // Initializing kinectSensor
-            this.kinectSensor = KinectSensor.GetDefault();
+            kinectSensor = KinectSensor.GetDefault();
 
             SetupCurrentDisplay(DEFAULT_DISPLAY_FRAME_TYPE);
 
             // getting the FrameDescription from multiple sources
-            this.coordinateMapper = this.kinectSensor.CoordinateMapper;
+            coordinateMapper = kinectSensor.CoordinateMapper;
 
-            this.multiSourceFrameReader = this.kinectSensor.OpenMultiSourceFrameReader(
+           multiSourceFrameReader = kinectSensor.OpenMultiSourceFrameReader(
                 FrameSourceTypes.Infrared 
                 | FrameSourceTypes.Color 
                 | FrameSourceTypes.Depth
                 | FrameSourceTypes.BodyIndex
                 | FrameSourceTypes.Body);
-            this.multiSourceFrameReader.MultiSourceFrameArrived += this.Reader_MultiSourceFrameArrived;
+            multiSourceFrameReader.MultiSourceFrameArrived += Reader_MultiSourceFrameArrived;
         
 
             // set IsAvailableChanged event notifier
-            this.kinectSensor.IsAvailableChanged += this.Sensor_IsAvailableChanged;
+            kinectSensor.IsAvailableChanged += Sensor_IsAvailableChanged;
 
             // use the window object as the view model in this example
-            this.DataContext = this;
+            DataContext = this;
 
             // open sensor
-            this.kinectSensor.Open();
+            kinectSensor.Open();
 
-            this.InitializeComponent();
-
+            InitializeComponent();
         }
 
+        private async Task createFile(String fileString)
+        {
+            // Create sample file; replace if exists.
+            Windows.Storage.StorageFolder storageFolder =
+                Windows.Storage.ApplicationData.Current.LocalFolder;
+            sampleFile =
+                await storageFolder.CreateFileAsync(fileString,
+                    Windows.Storage.CreationCollisionOption.ReplaceExisting);
+        }
+
+     /*   private async Task getAsyncFile(String fileString)
+        {
+            Windows.Storage.StorageFolder storageFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
+            await storageFolder.GetFileAsync(FILE_OUTPUT_STRING);
+        }
+        */
         private void Reader_MultiSourceFrameArrived(MultiSourceFrameReader sender, MultiSourceFrameArrivedEventArgs e)
         {
             MultiSourceFrame multiSourceFrame = e.FrameReference.AcquireFrame();
@@ -176,6 +208,7 @@ namespace KinectPositionMapper
             {
                 return;
             }
+
             DepthFrame depthFrame = null;
             ColorFrame colorFrame = null;
             InfraredFrame infraredFrame = null;
@@ -217,9 +250,9 @@ namespace KinectPositionMapper
 
                         // Access the depth frame data directly via LockImageBuffer to avoid making a copy
                         depthFrameDataBuffer = depthFrame.LockImageBuffer();
-                        this.coordinateMapper.MapColorFrameToDepthSpaceUsingIBuffer(depthFrameDataBuffer, this.colorMappedToDepthPoints);
+                        coordinateMapper.MapColorFrameToDepthSpaceUsingIBuffer(depthFrameDataBuffer, colorMappedToDepthPoints);
                         // Process color
-                        colorFrame.CopyConvertedFrameDataToBuffer(this.bitmap.PixelBuffer, ColorImageFormat.Bgra);
+                        colorFrame.CopyConvertedFrameDataToBuffer(bitmap.PixelBuffer, ColorImageFormat.Bgra);
                         // Access the body index frame data directly via LockImageBuffer to avoid making a copy
                         bodyIndexFrameData = bodyIndexFrame.LockImageBuffer();
                         ShowMappedBodyFrame(depthFrame.FrameDescription.Width, depthFrame.FrameDescription.Height, bodyIndexFrameData, bodyIndexByteAccess);
@@ -259,6 +292,7 @@ namespace KinectPositionMapper
                     using (bodyFrame = multiSourceFrame.BodyFrameReference.AcquireFrame())
                     {
                         ShowBodyJoints(bodyFrame);
+                        CalculateBodyPositions(bodyFrame);    
                     }
                     break;
                 default:
@@ -272,56 +306,56 @@ namespace KinectPositionMapper
             // Frames used by more than one type are declared outside the switch statement
             FrameDescription colorFrameDescription = null;
 
-            //reset the display mathods
-            if (this.BodyJointsGrid != null)
+            //reset the display methods
+            if (BodyJointsGrid != null)
             {
-                this.BodyJointsGrid.Visibility = Visibility.Collapsed;
+                BodyJointsGrid.Visibility = Visibility.Collapsed;
             }
-            if (this.FrameDisplayImage != null)
+            if (FrameDisplayImage != null)
             {
-                this.FrameDisplayImage.Source = null;
+                FrameDisplayImage.Source = null;
             }
             switch (currentDisplayFrameType)
             {
                 case DisplayFrameType.Infrared:
-                    FrameDescription infraredFrameDescription = this.kinectSensor.InfraredFrameSource.FrameDescription;
-                    this.CurrentFrameDescription = infraredFrameDescription;
+                    FrameDescription infraredFrameDescription = kinectSensor.InfraredFrameSource.FrameDescription;
+                    CurrentFrameDescription = infraredFrameDescription;
                     // allocate space to put the pixels being received and converted
-                    this.infraredFrameData = new ushort[infraredFrameDescription.Width * infraredFrameDescription.Height];
-                    this.infraredPixels = new byte[infraredFrameDescription.Width * infraredFrameDescription.Height * BYTES_PER_PIXEL];
-                    this.bitmap = new WriteableBitmap(infraredFrameDescription.Width, infraredFrameDescription.Height);
+                    infraredFrameData = new ushort[infraredFrameDescription.Width * infraredFrameDescription.Height];
+                    infraredPixels = new byte[infraredFrameDescription.Width * infraredFrameDescription.Height * BYTES_PER_PIXEL];
+                    bitmap = new WriteableBitmap(infraredFrameDescription.Width, infraredFrameDescription.Height);
                     break;
 
                 case DisplayFrameType.Color:
-                    colorFrameDescription = this.kinectSensor.ColorFrameSource.FrameDescription;
-                    this.CurrentFrameDescription = colorFrameDescription;
+                    colorFrameDescription = kinectSensor.ColorFrameSource.FrameDescription;
+                    CurrentFrameDescription = colorFrameDescription;
                     // create the bitmap
-                    this.bitmap = new WriteableBitmap(colorFrameDescription.Width, colorFrameDescription.Height);
+                    bitmap = new WriteableBitmap(colorFrameDescription.Width, colorFrameDescription.Height);
                     break;
                 case DisplayFrameType.Depth:
-                    FrameDescription depthFrameDescription = this.kinectSensor.DepthFrameSource.FrameDescription;
-                    this.CurrentFrameDescription = depthFrameDescription;
-                    this.depthFrameData = new ushort[depthFrameDescription.Width * depthFrameDescription.Height];
-                    this.depthPixels = new byte[depthFrameDescription.Width * depthFrameDescription.Height * BYTES_PER_PIXEL];
-                    this.bitmap = new WriteableBitmap(depthFrameDescription.Width, depthFrameDescription.Height);
+                    FrameDescription depthFrameDescription = kinectSensor.DepthFrameSource.FrameDescription;
+                    CurrentFrameDescription = depthFrameDescription;
+                    depthFrameData = new ushort[depthFrameDescription.Width * depthFrameDescription.Height];
+                    depthPixels = new byte[depthFrameDescription.Width * depthFrameDescription.Height * BYTES_PER_PIXEL];
+                    bitmap = new WriteableBitmap(depthFrameDescription.Width, depthFrameDescription.Height);
                     break;
                 case DisplayFrameType.BodyMask:
-                    colorFrameDescription = this.kinectSensor.ColorFrameSource.FrameDescription;
-                    this.CurrentFrameDescription = colorFrameDescription;
-                    this.colorMappedToDepthPoints = new DepthSpacePoint[colorFrameDescription.Width * colorFrameDescription.Height];
-                    this.bitmap = new WriteableBitmap(colorFrameDescription.Width, colorFrameDescription.Height);
+                    colorFrameDescription = kinectSensor.ColorFrameSource.FrameDescription;
+                    CurrentFrameDescription = colorFrameDescription;
+                    colorMappedToDepthPoints = new DepthSpacePoint[colorFrameDescription.Width * colorFrameDescription.Height];
+                    bitmap = new WriteableBitmap(colorFrameDescription.Width, colorFrameDescription.Height);
                     break;
                 case DisplayFrameType.BodyJoints:
                     // instantiate a new Canvas
-                    this.drawingCanvas = new Canvas();
-                    this.drawingCanvas.Clip = new RectangleGeometry();
-                    this.drawingCanvas.Clip.Rect = new Rect(0.0, 0.0, this.BodyJointsGrid.Width, this.BodyJointsGrid.Height);
+                    drawingCanvas = new Canvas();
+                    drawingCanvas.Clip = new RectangleGeometry();
+                    drawingCanvas.Clip.Rect = new Rect(0.0, 0.0, BodyJointsGrid.Width, BodyJointsGrid.Height);
                     // reset the body joints grid
-                    this.BodyJointsGrid.Visibility = Visibility.Visible;
-                    this.BodyJointsGrid.Children.Clear();
+                    BodyJointsGrid.Visibility = Visibility.Visible;
+                    BodyJointsGrid.Children.Clear();
                     // add canvas to DisplayGrid
-                    this.BodyJointsGrid.Children.Add(this.drawingCanvas);
-                    this.bodiesManager = new BodiesManager(this.coordinateMapper, this.drawingCanvas, this.kinectSensor.BodyFrameSource.BodyCount);
+                    BodyJointsGrid.Children.Add(drawingCanvas);
+                    bodiesManager = new BodiesManager(coordinateMapper, drawingCanvas, kinectSensor.BodyFrameSource.BodyCount);
                     break;
                 default:
                     break;
@@ -330,12 +364,43 @@ namespace KinectPositionMapper
 
         private void Sensor_IsAvailableChanged(KinectSensor sender, IsAvailableChangedEventArgs args)
         {
-            this.StatusText = this.kinectSensor.IsAvailable ? "Running" : "Not Available";
+            StatusText = kinectSensor.IsAvailable ? "Running" : "Not Available";
+        }
+
+        private void CalculateBodyPositions(BodyFrame bodyFrame)
+        {
+            Body[] bodiesArray = new Body[kinectSensor.BodyFrameSource.BodyCount];
+
+            if (bodyFrame != null)
+            {
+                bodyFrame.GetAndRefreshBodyData(bodiesArray);
+
+                /* Iterate through all the bodies. There is no point in persisting activeBodyIndex because we must compare
+                 * with depths of all bodies so there is no gain in efficiency */
+
+                for (int i = 0; i < bodiesArray.Length; i++)
+                {
+                    Body body = bodiesArray[i];
+                    if (body.IsTracked)
+                    {
+                        spinalPosition = GetPositionFromBody(body);
+                    }
+                }
+            }
+        }
+
+        private async void asyncWriteOutput(object sender, RoutedEventArgs e)
+        {
+            while (true)
+            {
+                await Windows.Storage.FileIO.AppendTextAsync(sampleFile, spinalPosition.x + " " + spinalPosition.y + " " + spinalPosition.z + Environment.NewLine);
+                await Task.Delay(1000);
+            }
         }
 
         private void ShowBodyJoints(BodyFrame bodyFrame)
         {
-            Body[] bodies = new Body[this.kinectSensor.BodyFrameSource.BodyCount];
+            Body[] bodies = new Body[kinectSensor.BodyFrameSource.BodyCount];
             bool dataReceived = false;
             if (bodyFrame != null)
             {
@@ -344,8 +409,18 @@ namespace KinectPositionMapper
             }
             if (dataReceived)
             {
-                this.bodiesManager.UpdateBodiesAndEdges(bodies);
+                bodiesManager.UpdateBodiesAndEdges(bodies);
             }
+        }
+
+        private Position GetPositionFromBody(Body body)
+        {
+            Position newPosition;
+            newPosition.x = body.Joints[JointType.SpineBase].Position.X;
+            newPosition.y = body.Joints[JointType.SpineBase].Position.Y;
+            newPosition.z = body.Joints[JointType.SpineBase].Position.Z;
+
+            return newPosition;
         }
 
         unsafe private void ShowMappedBodyFrame(int depthWidth, int depthHeight, IBuffer bodyIndexFrameData, IBufferByteAccess bodyIndexByteAccess)
@@ -354,9 +429,9 @@ namespace KinectPositionMapper
             byte* bodyIndexBytes = null;
             bodyIndexByteAccess.Buffer(out bodyIndexBytes);
 
-            fixed (DepthSpacePoint* colorMappedToDepthPointsPointer = this.colorMappedToDepthPoints)
+            fixed (DepthSpacePoint* colorMappedToDepthPointsPointer = colorMappedToDepthPoints)
             {
-                IBufferByteAccess bitmapBackBufferByteAccess = (IBufferByteAccess)this.bitmap.PixelBuffer;
+                IBufferByteAccess bitmapBackBufferByteAccess = (IBufferByteAccess)bitmap.PixelBuffer;
 
                 byte* bitmapBackBufferBytes = null;
                 bitmapBackBufferByteAccess.Buffer(out bitmapBackBufferBytes);
@@ -365,7 +440,7 @@ namespace KinectPositionMapper
 
                 // Loop over each row and column of the color image
                 // Zero out any pixels that don't correspond to a body index
-                int colorMappedLength = this.colorMappedToDepthPoints.Length;
+                int colorMappedLength = colorMappedToDepthPoints.Length;
                 for (int colorIndex= 0; colorIndex < colorMappedLength; colorIndex++)
                 {
                     float colorMappedToDepthX = colorMappedToDepthPointsPointer[colorIndex].X;
@@ -385,7 +460,7 @@ namespace KinectPositionMapper
                             // IF we are tracking a body for the current pixel do not zero out pixel
                             if (bodyIndexBytes[depthIndex] != 0xff)
                             {
-                                // this bodyINdexByte is good and is abody
+                                // this bodyINdexByte is good and is a body
                                 continue;
                             }
                         }
@@ -395,8 +470,8 @@ namespace KinectPositionMapper
                 }
             }
 
-            this.bitmap.Invalidate();
-            FrameDisplayImage.Source = this.bitmap;
+            bitmap.Invalidate();
+            FrameDisplayImage.Source = bitmap;
         }
 
         private void ShowInfraredFrame(InfraredFrame infraredFrame)
@@ -408,12 +483,12 @@ namespace KinectPositionMapper
                 FrameDescription infraredFrameDescription = infraredFrame.FrameDescription;
 
                 // verify data and write the new infrared frame data to the display bitmap
-                if (((infraredFrameDescription.Width * infraredFrameDescription.Height) == this.infraredFrameData.Length) &&
-                    (infraredFrameDescription.Width == this.bitmap.PixelWidth) &&
-                    (infraredFrameDescription.Height == this.bitmap.PixelHeight))
+                if (((infraredFrameDescription.Width * infraredFrameDescription.Height) == infraredFrameData.Length) &&
+                    (infraredFrameDescription.Width == bitmap.PixelWidth) &&
+                    (infraredFrameDescription.Height == bitmap.PixelHeight))
                 {
                     // Copy the pixel data from the image to a temporary array
-                    infraredFrame.CopyFrameDataToArray(this.infraredFrameData);
+                    infraredFrame.CopyFrameDataToArray(infraredFrameData);
 
                     infraredFrameProcessed = true;
                 }
@@ -424,7 +499,7 @@ namespace KinectPositionMapper
             if (infraredFrameProcessed)
             {
                 ConvertInfraredDataToPixels();
-                RenderPixelArray(this.infraredPixels);
+                RenderPixelArray(infraredPixels);
             }
         }
 
@@ -436,14 +511,14 @@ namespace KinectPositionMapper
             {
                 FrameDescription colorFrameDescription = colorFrame.FrameDescription;
 
-                if ((colorFrameDescription.Width == this.bitmap.PixelWidth) && (colorFrameDescription.Height == this.bitmap.PixelHeight))
+                if ((colorFrameDescription.Width == bitmap.PixelWidth) && (colorFrameDescription.Height == bitmap.PixelHeight))
                 {
                     if (colorFrame.RawColorImageFormat == ColorImageFormat.Bgra)
                     {
-                        colorFrame.CopyRawFrameDataToBuffer(this.bitmap.PixelBuffer);
+                        colorFrame.CopyRawFrameDataToBuffer(bitmap.PixelBuffer);
                     } else
                     {
-                        colorFrame.CopyConvertedFrameDataToBuffer(this.bitmap.PixelBuffer, ColorImageFormat.Bgra);
+                        colorFrame.CopyConvertedFrameDataToBuffer(bitmap.PixelBuffer, ColorImageFormat.Bgra);
                     }
 
                     colorFrameProcessed = true;
@@ -452,8 +527,8 @@ namespace KinectPositionMapper
 
             if (colorFrameProcessed)
             {
-                this.bitmap.Invalidate();
-                FrameDisplayImage.Source = this.bitmap;
+                bitmap.Invalidate();
+                FrameDisplayImage.Source = bitmap;
             }
         }
 
@@ -468,10 +543,10 @@ namespace KinectPositionMapper
                 FrameDescription depthFrameDescription = depthFrame.FrameDescription;
 
                 // verify data and write frame data to display bitmap
-                if (((depthFrameDescription.Width * depthFrameDescription.Height) == this.depthFrameData.Length) &&
-                    (depthFrameDescription.Width == this.bitmap.PixelWidth) && (depthFrameDescription.Height == this.bitmap.PixelHeight))
+                if (((depthFrameDescription.Width * depthFrameDescription.Height) == depthFrameData.Length) &&
+                    (depthFrameDescription.Width == bitmap.PixelWidth) && (depthFrameDescription.Height == bitmap.PixelHeight))
                 {
-                    depthFrame.CopyFrameDataToArray(this.depthFrameData);
+                    depthFrame.CopyFrameDataToArray(depthFrameData);
 
                     minDepth = depthFrame.DepthMinReliableDistance;
                     maxDepth = depthFrame.DepthMaxReliableDistance;
@@ -483,7 +558,7 @@ namespace KinectPositionMapper
             if (depthFrameProcessed == true)
             {
                 ConvertDepthDataToPixels(minDepth, maxDepth);
-                RenderPixelArray(this.depthPixels);
+                RenderPixelArray(depthPixels);
             }
         }
 
@@ -492,17 +567,17 @@ namespace KinectPositionMapper
             int colorPixelIndex = 0;
             int mapDepthToByte = maxDepth / 256;
 
-            for (int i = 0; i < this.depthFrameData.Length; i++)
+            for (int i = 0; i < depthFrameData.Length; i++)
             {
                 // depth for this pixel
-                ushort depth = this.depthFrameData[i];
+                ushort depth = depthFrameData[i];
 
                 byte intensity = (byte)(depth >= minDepth && depth <= maxDepth ? (depth / mapDepthToByte) : 0);
                 for (int j = 0; j < 3; j++)
                 {
-                    this.depthPixels[colorPixelIndex++] = intensity;
+                    depthPixels[colorPixelIndex++] = intensity;
                 }
-                this.depthPixels[colorPixelIndex++] = 255;
+                depthPixels[colorPixelIndex++] = 255;
             }
         }
 
@@ -510,14 +585,14 @@ namespace KinectPositionMapper
         {
             // convert the infrared to RGB
             int colorPixelIndex = 0;
-            for (int i = 0; i < this.infraredFrameData.Length; i++)
+            for (int i = 0; i < infraredFrameData.Length; i++)
             {
                 // normalize the incoming infrared data (ushort) to a float
                 // ranging from INFRARED_OUTPUT_VALUE_MINIMUM to 
                 // INFRARED_OUTPUT_VALUE_MAXIMUM
 
                 // 1. dividing the incoming value by source max
-                float intensityRatio = (float)this.infraredFrameData[i] / INFRARED_SOURCE_VALUE_MAXIMUM;
+                float intensityRatio = (float)infraredFrameData[i] / INFRARED_SOURCE_VALUE_MAXIMUM;
 
                 // 2. dividing by the (average scene value * standard deviations)
                 intensityRatio /= INFRARED_SCENE_VALUE_AVERAGE * INFRARED_SCENE_STANDARD_DEVIATIONS;
@@ -532,18 +607,18 @@ namespace KinectPositionMapper
                 // required by image
 
                 byte intensity = (byte)(intensityRatio * 225.0f);
-                this.infraredPixels[colorPixelIndex++] = intensity; // Blue
-                this.infraredPixels[colorPixelIndex++] = intensity; // Green
-                this.infraredPixels[colorPixelIndex++] = intensity; // Red
-                this.infraredPixels[colorPixelIndex++] = 255; // Alpha
+                infraredPixels[colorPixelIndex++] = intensity; // Blue
+                infraredPixels[colorPixelIndex++] = intensity; // Green
+                infraredPixels[colorPixelIndex++] = intensity; // Red
+                infraredPixels[colorPixelIndex++] = 255; // Alpha
             }
         }
 
         private void RenderPixelArray(byte[] pixels)
         {
-            pixels.CopyTo(this.bitmap.PixelBuffer);
-            this.bitmap.Invalidate();
-            FrameDisplayImage.Source = this.bitmap;
+            pixels.CopyTo(bitmap.PixelBuffer);
+            bitmap.Invalidate();
+            FrameDisplayImage.Source = bitmap;
 
         }
 
